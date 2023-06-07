@@ -27,10 +27,6 @@ public class CommonPayload<T> {
     @JsonProperty("ResultObject")
     private T resultObject;
 
-    @JsonProperty("CorrelationId")
-    @Builder.Default
-    private String correlationId = MDC.get(Constants.REQ_CORRELATION_ID_JAVA);
-
     public static <T> CommonPayload<T> success() {
         return success(null);
     }

@@ -14,6 +14,7 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.annotation.WebFilter;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,6 +33,7 @@ public class MdcFilter implements Filter {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
         injectTraceId((HttpServletRequest) request);
+        passTraceId((HttpServletResponse) response);
         chain.doFilter(request, response);
     }
 
@@ -51,6 +53,12 @@ public class MdcFilter implements Filter {
         request.setAttribute(Constants.REQ_CORRELATION_ID_DOTNET, correlationId);
         request.setAttribute(Constants.REQ_CORRELATION_ID_JAVA, correlationId);
         MDC.put(Constants.REQ_CORRELATION_ID_JAVA, correlationId);
+    }
+
+    private void passTraceId(HttpServletResponse response) {
+        response.setHeader(
+            Constants.REQ_CORRELATION_ID_JAVA,
+            MDC.get(Constants.REQ_CORRELATION_ID_JAVA));
     }
 
     private void removeAllMDCValue() {
