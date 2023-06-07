@@ -1,0 +1,18 @@
+---
+docker_compose_required_directory:
+- path: "{{ docker_work_dir }}"
+  owner: srv-deployer
+  group: automation
+  mode: "0755"
+
+docker_compose_required_data:
+- src: "{{ inventory_dir }}/group_vars/{{ group_names[0] }}/files/docker-compose/envCompose.txt"
+  dest: "{{ docker_work_dir }}/envCompose"
+  owner: srv-deployer
+  group: automation
+  mode: "0644"
+- src: "{{ inventory_dir }}/group_vars/{{ group_names[0] }}/files/docker-compose/docker-compose.yml"
+  dest: "{{ docker_work_dir }}/docker-compose.yml"
+  owner: srv-deployer
+  group: automation
+  mode: "0644"

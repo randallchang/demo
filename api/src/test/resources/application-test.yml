@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: appsvc-api
+  h2:
+    console:
+      enabled: false
+  datasource:
+    url: jdbc:h2:mem:testDB;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+    username: api
+    password: api
+    driverClassName: org.h2.Driver
+    hikari:
+      maximumPoolSize: 5
+      minimumIdle: 5
+#  sql:
+#    init:
+#      schema-locations: classpath:h2/api-schema-*.sql
+#      data-locations: classpath:h2/api-data-*.sql
+
+logging:
+  level:
+    com.jkos.appsvc: debug
+
+authenticate:
+  oldUapiToken:
+    pwdAesIV: www.jkos_o2o.com
+    pwdAesKey: JKOS_O2OPlatform

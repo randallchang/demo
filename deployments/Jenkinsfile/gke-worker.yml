@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: jenkins-agent
+spec:
+  imagePullSecrets:
+  - name: artifact-registry
+  volumes:
+  - name: docker-socket
+    hostPath:
+      path: /var/run/docker.sock
+  containers:
+  - name: docker
+    image: asia-east1-docker.pkg.dev/jkos-sit-service/app/utils/docker-buildx:v1.0
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+      limits:
+        memory: "4096Mi"
+        cpu: "500m"
+    command:
+    - sleep
+    args:
+    - infinity
+    tty: true
+    volumeMounts:
+    - name: docker-socket
+      mountPath: /var/run/docker.sock
+  - name: kubectl
+    image: asia-east1-docker.pkg.dev/jkos-sit-service/app/utils/docker-kubectl:v1.4
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+      limits:
+        memory: "2048Mi"
+        cpu: "500m"
+    command:
+    - sleep
+    args:
+    - infinity
+    tty: true
+    volumeMounts:
+    - name: docker-socket
+      mountPath: /var/run/docker.sock

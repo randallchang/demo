@@ -1,0 +1,5 @@
+---
+- hosts: '{{ hn }}'
+  gather_facts: no
+  roles:
+    - role: "{{ (playbook_dir + '/docker_compose') | replace('playbook', 'roles') }}"

@@ -1,0 +1,48 @@
+version: "3.9"
+services:
+  api:
+    image: ${_APP_IMAGE}
+    ports:
+      - "${_APP_PORT}:8080"
+    environment:
+      TZ: Asia/Taipei
+    networks:
+      - ${_APP_NETWORK}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: "512M"
+        reservations:
+          cpus: "0.10"
+          memory: "32M"
+      mode: replicated
+      replicas: 1
+      update_config:
+        order: start-first
+        parallelism: 1
+        failure_action: rollback
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 30s
+      placement:
+        constraints:
+          - "node.role==worker"
+    logging:
+      driver: json-file
+      options:
+        labels: service
+    labels:
+      - "service=${_APP_STACK}"
+
+networks:
+  jkos-app-svc-api-prod: # to do (這邊名稱必須跟 Jenkinsfile 中的 env._APP_NETWORK 相同)
+    external: true

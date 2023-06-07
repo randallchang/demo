@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    hikari:
+      max-pool-size: 5
+      min-idle: 5
+    url: jdbc:mysql://192.168.12.175:3306/JKOS?serverTimezone=GMT%2B8&characterEncoding=utf8&allowMultiQueries=TRUE
+    username: app
+    password: Jk@s2345
+
+server:
+  shutdown: graceful
+logging:
+  level:
+    root: info
+##### 以上為 3rd lib 設定, 以下為專案內設定
+
+jkos:
+  uapi:
+    base-url: https://sit-uapi-inner.jkos.app/Service/
+    my-jkos-message-offline-month: 2025-03
+msg-hub:
+  base-url: https://sit-msghub.jkos.app/
+
+authenticate:
+  oldUapiToken:
+    pwdAesIV: www.jkos_o2o.com
+    pwdAesKey: JKOS_O2OPlatform

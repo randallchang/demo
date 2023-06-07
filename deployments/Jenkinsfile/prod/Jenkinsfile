@@ -1,0 +1,441 @@
+// global variable
+def _GIT_COMMIT
+def _GIT_COMMIT_AUTHOR
+def agentLabel
+def _WORKSPACE_DIR_AGENT
+
+properties([
+  buildDiscarder(
+      logRotator(
+          numToKeepStr: '30'
+      )
+  )
+])
+
+pipeline {
+  agent any
+
+  options {
+    skipDefaultCheckout true
+    ansiColor('xterm')
+  }
+
+  parameters {
+    string(name: 'BRANCH',
+      defaultValue: 'master',
+      description: 'GIT BRANCH'
+    )
+    string(name: 'REVISION',
+      defaultValue: 'HEAD',
+      description: 'GIT REVISION'
+    )
+    choice(name: 'ACTION',
+      choices: [
+        'NOTSUPPORT',
+        'deploy'
+      ],
+      description: 'CHOOSE ACTION'
+    )
+    choice(name: 'APP_NAME',
+      choices: [
+        'NOTSUPPORT',
+        'all',
+        'api',
+        'batch'
+      ],
+      description: 'CHOOSE APP_NAME'
+    )
+    choice(name: 'ENVIRONMENT',
+      choices: [
+        'NOTSUPPORT',
+        'prod'
+      ],
+      description: 'CHOOSE ENVIRONMENT'
+    )
+  }
+
+  environment {
+    // define git repo info
+    BRANCH                               = "${params.BRANCH}"
+    REVISION                             = "${params.REVISION}"
+    // define environment
+    ENVIRONMENT                          = "${params.ENVIRONMENT}"
+    // define action
+    ACTION                               = "${params.ACTION}"
+    // define workspace
+    _WORKSPACE_DIR                       = "${WORKSPACE}/${BUILD_ID}"
+    // add path
+    PATH                                 = "${env.PATH}:/usr/local/bin:${env.HOME}/bin:/data/jenkins/bin"
+  }
+
+  stages {
+    // setup environment
+    stage('Setup Environment') {
+      steps {
+        // set env
+        script {
+          env._PROJECT_NAME                             = "jkos-app-svc" // project name must start with jkos- for logger
+          env.DOCKER_HOST                               = "unix:///var/run/docker.sock"
+          env._BUILD_ENV                                = "buildEnv"
+          env._GAR_CREDENTIALS_ID                       = "jkos-sit-service_service-release_certificates"
+          switch(env.ENVIRONMENT) {
+            case 'prod':
+              env._CONTAINER_REGISTRY                   = "asia-east1-docker.pkg.dev/jkos-sit-service/app" // to do
+              env._DOCKER_IMAGE_TAG_ROOT                = "${_CONTAINER_REGISTRY}/${_PROJECT_NAME}/${ENVIRONMENT}"
+              // app
+              env._GIT_REPO                             = "https://gitlab.jkos.app/rd4/jkos-app-svc.git" // git repo
+              // container
+              env._PROFILE                              = "prod"
+              env._ENVIRONMENT                          = "prod"
+              env._DEVELOPER                            = "rd4"
+              // deployment
+              env._GITLAB_CREDENTIALS                   = "release-credential"
+              env._DEPLOYMENT_DIRECTORY                 = "deployments/ansible"
+              env._DEPLOYMENT_INVENTORY                 = "${_DEPLOYMENT_DIRECTORY}/inventory/${ENVIRONMENT}/hosts"
+              env._DEPLOYMENT_PLAYBOOK                  = "${_DEPLOYMENT_DIRECTORY}/playbook/docker_compose.yml"
+              env._ANSIBLE_INSTALLATION                 = "ansible-playbook"
+              env._ANSIBLE_SSH_KEY                      = "srv-deployer_id_rsa"
+              env._ANSIBLE_VAULT_KEY                    = "ansible-vault"
+
+              // slack notification
+              env._SLACK_TAG_EMAIL                      = "andy.chu@jkos.com,ted.juang@jkos.com,eric.kuo@jkos.com" //to do:email split by comma
+              env._SLACK_API_ENDPOINT                   = "https://sit-sre.jkos.app/api/v1/slack/jenkins"
+              env._SLACK_CHANNEL                        = "#jenkins-sit-rd4"
+              break
+          }
+        }
+
+        script {
+          agentLabel = "slave-001"
+          _WORKSPACE_DIR_AGENT = _WORKSPACE_DIR.replaceAll("workspace", "ci-workspace/workspace")
+          if (ENVIRONMENT == "prod") {
+            agentLabel = "slave-001"
+            _WORKSPACE_DIR_AGENT = _WORKSPACE_DIR.replaceAll("workspace", "ci-workspace/workspace")
+          }
+        }
+
+        // block if selected ENVIRONMENT not supported
+        script {
+          if (params.ENVIRONMENT == "NOTSUPPORT") {
+              error('ENVIRONMENT not supported')
+          }
+        }
+
+        // block if selected ACTION not supported
+        script {
+          if (params.ACTION == "NOTSUPPORT") {
+              error('ACTION not supported')
+          }
+        }
+
+        // block if selected APP_NAME not supported
+        script {
+          if (params.APP_NAME == "NOTSUPPORT") {
+            error('APP_NAME not supported')
+          }
+        }
+
+        // app env define
+        script {
+          _APP_LIST = [:]
+          _APP_CONFIGS = [
+            "api":[
+                "DEPLOYMENT_HOSTS":       "api",
+                "APP_WORKDIR":            "/home/automation/srv-deployer/dev/docker-compose/${_PROJECT_NAME}/api",
+                "DOCKERFILE_BASE_IMAGE":  "deployments/Dockerfile/api/Dockerfile-Base-Image",
+                "DOCKERFILE":             "deployments/Dockerfile/api/Dockerfile",
+                "BASE_IMAGE_BUILD_FROM":  "maven:3.9.0-eclipse-temurin-17", // to do
+                "BASE_IMAGE_APP":         "openjdk:20-ea-17-jdk", // to do
+                "BASE_IMAGE":             "${_DOCKER_IMAGE_TAG_ROOT}/api:base",
+                "APP_IMAGE":              "${_DOCKER_IMAGE_TAG_ROOT}/api",
+                "APP_NAME":               "api",
+                "APP_PORT":               [
+                                            "sit":  "58080",
+                                            "uat":  "58080",
+                                            "prod": "58080"
+                ],
+                "COMPOSE_ENV_PATH":       "${_DEPLOYMENT_DIRECTORY}/inventory/${ENVIRONMENT}/group_vars/api/files/docker-compose/envCompose.txt",
+                "APP_NETWORK":            "${_PROJECT_NAME}-api-${ENVIRONMENT}"
+            ],
+            'batch': [
+                "DEPLOYMENT_HOSTS":       "batch",
+                "APP_WORKDIR":            "/home/automation/srv-deployer/dev/docker-compose/${_PROJECT_NAME}/batch",
+                "DOCKERFILE_BASE_IMAGE":  "deployments/Dockerfile/batch/Dockerfile-Base-Image", // todo if multi dockerfile
+                "DOCKERFILE":             "deployments/Dockerfile/batch/Dockerfile", // todo if multi dockerfile
+                "BASE_IMAGE_BUILD_FROM":  "maven:3.9.0-eclipse-temurin-17", // to do
+                "BASE_IMAGE_APP":         "openjdk:20-ea-17-jdk", // to do
+                "BASE_IMAGE":             "${_DOCKER_IMAGE_TAG_ROOT}/batch:base",
+                "APP_IMAGE":              "${_DOCKER_IMAGE_TAG_ROOT}/batch",
+                "APP_NAME":               "batch",
+                "APP_PORT":               [
+                                            "sit":  "58080",
+                                            "uat":  "58080",
+                                            "prod": "58080"
+                ],
+                "COMPOSE_ENV_PATH":       "${_DEPLOYMENT_DIRECTORY}/inventory/${ENVIRONMENT}/group_vars/batch/files/docker-compose/envCompose.txt",
+                "APP_NETWORK":            "${_PROJECT_NAME}-batch-${ENVIRONMENT}"
+            ]
+          ]
+          switch(params.APP_NAME) {
+            case 'all':
+              _APP_LIST.put("api", _APP_CONFIGS["api"])
+              _APP_LIST.put("batch", _APP_CONFIGS["batch"])
+              break;
+            case 'api':
+              _APP_LIST.put("api", _APP_CONFIGS["api"])
+              break
+            case 'batch':
+              _APP_LIST.put("batch", _APP_CONFIGS["batch"])
+          }
+        }
+
+        // git repo info
+        sh(
+          label:  "Git Repo: ${_GIT_REPO}",
+          script: "echo Git Repo: ${_GIT_REPO}"
+        )
+        sh(
+          label:  "Branch: ${BRANCH}",
+          script: "echo Branch: ${BRANCH}"
+        )
+        sh(
+          label:  "Revision: ${REVISION}",
+          script: "echo Revision: ${REVISION}"
+        )
+        // environment
+        sh(
+          label:  "Environment: ${ENVIRONMENT}",
+          script: "echo Environment: ${ENVIRONMENT}"
+        )
+        // action
+        sh(
+          label:  "Action: ${ACTION}",
+          script: "echo Action: ${ACTION}"
+        )
+        // workspace
+        sh(
+          label:  "Workspace: ${_WORKSPACE_DIR_AGENT}",
+          script: "echo Action: ${_WORKSPACE_DIR_AGENT}"
+        )
+      }
+    }
+    // end of setup environment
+
+    // git checkout for deploy
+    stage('Git checkout for deploy') {
+      agent {
+        label agentLabel
+      }
+      when {
+        allOf {
+          expression {
+            params.ACTION == 'deploy' || params.ACTION == 'build-and-deploy';
+          }
+        }
+      }
+      steps {
+        dir(_WORKSPACE_DIR_AGENT) {
+          git url: "${_GIT_REPO}",
+              credentialsId: "${_GITLAB_CREDENTIALS}",
+              branch: "${BRANCH}"
+        }
+
+        dir(_WORKSPACE_DIR_AGENT) {
+          sh(
+            label:  "git checkout ${REVISION}",
+            script: "git checkout ${REVISION}"
+          )
+        }
+
+        // get git commit
+        dir(_WORKSPACE_DIR_AGENT) {
+          script {
+            _GIT_COMMIT = sh(
+              script: """git rev-parse HEAD""",
+              returnStdout: true
+            ).trim()
+            env._GIT_COMMIT = _GIT_COMMIT
+          }
+          script {
+            _GIT_COMMIT_AUTHOR = sh(
+              script: """git show -s --format='%ae' ${env._GIT_COMMIT}""",
+              returnStdout: true
+            ).trim()
+            env._GIT_COMMIT_AUTHOR = _GIT_COMMIT_AUTHOR.split("@")[0]
+          }
+          echo "+++" + env._GIT_COMMIT_AUTHOR
+        }
+      }
+    }
+    // end of git checkout for deploy
+
+    // generator environment
+    stage('Generator Environment') {
+      agent {
+        label agentLabel
+      }
+      when {
+        allOf {
+          expression {
+            params.ACTION == 'deploy' || params.ACTION == 'build-and-deploy';
+          }
+        }
+      }
+      steps {
+        script {
+          def jobs = [:]
+          _APP_LIST.each { key, val ->
+            def job = "${key}"
+            jobs[job] = {
+              stage(job) {
+                stage("Deploy: ${job}") {
+                  dir(_WORKSPACE_DIR_AGENT) {
+                    script {
+                      // env compose
+                      env._APP_PORT          = "${val["APP_PORT"][ENVIRONMENT]}"
+                      env._APP_NETWORK       = "${val["APP_NETWORK"]}"
+                      env._APP_IMAGE         = "${val["APP_IMAGE"]}"
+                      env._APP_NAME          = "${val["APP_NAME"]}"
+                      env._COMPOSE_ENV_PATH  = "${val["COMPOSE_ENV_PATH"]}"
+                      sh (
+                        label: "Generator Environment",
+                        script: """
+                          jupiter envUtils \
+                            --envPath ${_COMPOSE_ENV_PATH} \
+                            --kv "export _APP_IMAGE='${_APP_IMAGE}:${_GIT_COMMIT}'" \
+                            --kv "export _APP_PORT='${_APP_PORT}'" \
+                            --kv "export _APP_NETWORK='${_APP_NETWORK}'" \
+                            --kv "export _APP_STACK='${_PROJECT_NAME}-${ENVIRONMENT}-${_APP_NAME}'"
+                        """
+                      )
+                    }
+                  }
+                }
+              }
+            }
+            parallel jobs
+          }
+        }
+      }
+    }
+    // end of generator environment
+
+    // deploy application
+    stage('Deploy Application') {
+      agent {
+        label agentLabel
+      }
+      when {
+        allOf {
+          expression {
+            params.ACTION == 'deploy' || params.ACTION == 'build-and-deploy';
+          }
+        }
+      }
+      steps {
+        script {
+          def jobs = [:]
+          _APP_LIST.each { key, val ->
+            def job = "${key}"
+            jobs[job] = {
+              stage(job) {
+                stage("Deploy: ${job}") {
+                  dir(_WORKSPACE_DIR_AGENT) {
+                    script {
+                      env._APP_WORKDIR           = "${val["APP_WORKDIR"]}"
+                      env._DEPLOYMENT_HOSTS      = "${val["DEPLOYMENT_HOSTS"]}"
+                      ansiblePlaybook(
+                        installation: "${_ANSIBLE_INSTALLATION}",
+                        credentialsId: "${_ANSIBLE_SSH_KEY}",
+                        inventory: "${_DEPLOYMENT_INVENTORY}",
+                        playbook: "${_DEPLOYMENT_PLAYBOOK}",
+                        extraVars: [
+                            hn: "${_DEPLOYMENT_HOSTS}",
+                        ],
+                        // extras: '-vvv',
+                        vaultCredentialsId: "${_ANSIBLE_VAULT_KEY}",
+                        hostKeyChecking: false,
+                        colorized: true
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          }
+          parallel jobs
+        }
+      }
+    }
+    // end of deploy application
+  }
+
+  post {
+    success {
+      script {
+        if (params.APP_NAME != "NOTSUPPORT") {
+          sh(
+            label:  "slack success notify to: ${env._SLACK_TAG_EMAIL}",
+            script: """
+              curl --location --request POST '${env._SLACK_API_ENDPOINT}' \
+                --header 'Accept: application/json' \
+                --header 'Content-Type: application/json' \
+                --connect-timeout 10 \
+                --data-raw '{
+                    "env":"${ENVIRONMENT}",
+                    "tag_email":"${env._SLACK_TAG_EMAIL}",
+                    "slack_channel":"${_SLACK_CHANNEL}",
+                    "build_status":true,
+                    "job_name": "${env.JOB_NAME}",
+                    "build_number": "${env.BUILD_NUMBER}",
+                    "git_branch":"${env.BRANCH}",
+                    "git_commit":"${_GIT_COMMIT}",
+                    "build_url": "${env.BUILD_URL}",
+                    "build_action": "${env.ACTION}"
+                }'
+          """)
+        }
+      }
+    }
+    failure {
+      script {
+        if (params.APP_NAME != "NOTSUPPORT") {
+          sh(
+            label:  "slack fail notify to: ${env._SLACK_TAG_EMAIL}",
+            script: """
+              curl --location --request POST '${env._SLACK_API_ENDPOINT}' \
+                --header 'Accept: application/json' \
+                --header 'Content-Type: application/json' \
+                --connect-timeout 10 \
+                --data-raw '{
+                    "env":"${ENVIRONMENT}",
+                    "tag_email":"${env._SLACK_TAG_EMAIL}",
+                    "slack_channel":"${_SLACK_CHANNEL}",
+                    "build_status":false,
+                    "job_name": "${env.JOB_NAME}",
+                    "build_number": "${env.BUILD_NUMBER}",
+                    "git_branch":"${env.BRANCH}",
+                    "git_commit":"${_GIT_COMMIT}",
+                    "build_url": "${env.BUILD_URL}",
+                    "build_action": "${env.ACTION}"
+                }'
+          """)
+        }
+      }
+    }
+    /* clean up our workspace */
+    always {
+      script {
+        dir(_WORKSPACE_DIR) {
+          deleteDir()
+        }
+        if (params.APP_NAME != "NOTSUPPORT") {
+          dir(_WORKSPACE_DIR_AGENT) {
+            deleteDir()
+          }
+        }
+      }
+    }
+    /* end of clean up our workspace */
+  }
+}

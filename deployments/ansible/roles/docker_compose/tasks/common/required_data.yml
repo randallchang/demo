@@ -1,0 +1,30 @@
+---
+# required data | docker_compose
+- name: required data | docker_compose
+  become: True
+  become_user: root
+  become_method: sudo
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  with_items:
+    - "{{ docker_compose_required_data }}"
+  when: docker_compose_required_data is defined
+
+# required data | template | docker_compose
+- name: required data | template | docker_compose
+  become: True
+  become_user: root
+  become_method: sudo
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  with_items:
+    - "{{ docker_compose_required_data_template }}"
+  when: docker_compose_required_data_template is defined

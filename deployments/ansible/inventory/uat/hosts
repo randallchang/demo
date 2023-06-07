@@ -1,0 +1,2 @@
+[api]
+api-01  ansible_user=srv-deployer  ansible_host=192.168.12.81 # to do

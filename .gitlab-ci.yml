@@ -1,0 +1,134 @@
+cache:
+    key: "$CI_PROJECT_NAME"
+    paths:
+      - .m2/repository/
+      - api/target/
+      - batch/target/
+
+variables:
+  _MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository -Dmaven.artifact.threads=50"
+  _JENKINS_URL: ${_CD_URL}
+  _JENKINS_JOB: job/backend/job/rd4/job/jkos-app-svc
+  _BRANCH: ${CI_COMMIT_BRANCH}
+  _REVISION: HEAD
+  _ENVIRONMENT: sit
+
+image: peterevans/curl-jq
+
+stages:
+  - info
+  - mvn-test
+  - build-info
+  - build-and-deploy-api
+  - build-and-deploy-batch
+
+info:
+  stage: info
+  script:
+    - |
+      echo "Info Stage"
+      echo CI_PROJECT_NAME: ${CI_PROJECT_NAME}
+      echo BRANCH: ${CI_COMMIT_BRANCH}
+
+build-info:
+  stage: build-info
+  script:
+    - |
+      echo "Build Info Stage"
+      echo Trigger Jenkins Job: ${_JENKINS_URL}/${_JENKINS_JOB}
+      echo BRANCH: ${_BRANCH}
+      echo REVISION: ${_REVISION}
+      echo ENVIRONMENT: ${_ENVIRONMENT}
+  when: manual
+
+mvn-test:
+  image: maven:3.9.0-eclipse-temurin-17
+  stage: mvn-test
+  script:
+    - 'mvn ${_MAVEN_OPTS} clean compile test'
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - api/target/surefire-reports/TEST-*.xml
+        - api/target/failsafe-reports/TEST-*.xml
+  only:
+    - merge_requests
+
+build-and-deploy-api:
+  stage: build-and-deploy-api
+  script:
+    - |
+      echo "Build Stage"
+      _ACTION="build-and-deploy"
+      _APP_NAME="api"
+      _LAST_BUILD_NUM=$(curl -sS -XGET --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/lastBuild/api/json" | jq -r .number)
+      echo curl -sS -XPOST --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/buildWithParameters?BRANCH=${_BRANCH}&REVISION=${_REVISION}&ACTION=${_ACTION}&APP_NAME=${_APP_NAME}&ENVIRONMENT=${_ENVIRONMENT}"
+      curl -sS -XPOST --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/buildWithParameters?BRANCH=${_BRANCH}&REVISION=${_REVISION}&ACTION=${_ACTION}&APP_NAME=${_APP_NAME}&ENVIRONMENT=${_ENVIRONMENT}"
+    - |
+      while true
+      do
+        _CURRENT_BUILD_NUM=$(curl -sS -XGET --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/lastBuild/api/json" | jq -r .number)
+        if [ ${_CURRENT_BUILD_NUM} -eq ${_LAST_BUILD_NUM} ]
+        then
+          echo Check New Build Start ...
+          sleep 5
+        elif [ ${_CURRENT_BUILD_NUM} -gt ${_LAST_BUILD_NUM} ]
+        then
+          break
+        fi
+      done
+    - |
+      while true
+      do
+        _BUILD_RESULT=$(curl -sS -XGET --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/${_CURRENT_BUILD_NUM}/api/json" | jq -r .result)
+        if [ ${_BUILD_RESULT} != "SUCCESS" ]
+        then
+          echo Still Building ...
+          sleep 10
+        else
+          break
+        fi
+      done
+    - echo Build Done
+  only:
+    - sit
+
+build-and-deploy-batch:
+  stage: build-and-deploy-batch
+  script:
+    - |
+      echo "Build Stage"
+      _ACTION="build-and-deploy"
+      _APP_NAME="internal"
+      _LAST_BUILD_NUM=$(curl -sS -XGET --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/lastBuild/api/json" | jq -r .number)
+      echo curl -sS -XPOST --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/buildWithParameters?BRANCH=${_BRANCH}&REVISION=${_REVISION}&ACTION=${_ACTION}&APP_NAME=${_APP_NAME}&ENVIRONMENT=${_ENVIRONMENT}"
+      curl -sS -XPOST --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/buildWithParameters?BRANCH=${_BRANCH}&REVISION=${_REVISION}&ACTION=${_ACTION}&APP_NAME=${_APP_NAME}&ENVIRONMENT=${_ENVIRONMENT}"
+    - |
+      while true
+      do
+        _CURRENT_BUILD_NUM=$(curl -sS -XGET --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/lastBuild/api/json" | jq -r .number)
+        if [ ${_CURRENT_BUILD_NUM} -eq ${_LAST_BUILD_NUM} ]
+        then
+          echo Check New Build Start ...
+          sleep 5
+        elif [ ${_CURRENT_BUILD_NUM} -gt ${_LAST_BUILD_NUM} ]
+        then
+          break
+        fi
+      done
+    - |
+      while true
+      do
+        _BUILD_RESULT=$(curl -sS -XGET --user "${_CI_AUTOMATION_ACC}:${_CI_AUTOMATION_TOKEN}" "${_JENKINS_URL}/${_JENKINS_JOB}/${_CURRENT_BUILD_NUM}/api/json" | jq -r .result)
+        if [ ${_BUILD_RESULT} != "SUCCESS" ]
+        then
+          echo Still Building ...
+          sleep 10
+        else
+          break
+        fi
+      done
+    - echo Build Done
+  only:
+    - sit

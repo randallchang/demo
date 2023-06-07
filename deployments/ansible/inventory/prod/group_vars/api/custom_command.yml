@@ -1,0 +1,21 @@
+---
+custom_command:
+# create docker network
+- username: root
+  command: |
+    source envCompose
+    docker network create --driver overlay ${_APP_NETWORK}
+  args_param:
+    executable: /bin/bash
+    chdir: "{{ docker_work_dir }}"
+  ignore_errors: true
+
+# docker-compose
+- username: root
+  command: |
+    source envCompose
+    docker stack deploy --with-registry-auth --prune --compose-file docker-compose.yml ${_APP_STACK}
+    rm -f envCompose env
+  args_param:
+    executable: /bin/bash
+    chdir: "{{ docker_work_dir }}"

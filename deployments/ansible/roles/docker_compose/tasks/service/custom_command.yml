@@ -1,0 +1,19 @@
+---
+# custom | env | command | custom_command
+- name: custom | env | command | custom_command
+  become: yes
+  become_user: "{{ item.username | default('root') }}"
+  shell: "{{ item.command }}"
+  args:
+    "{{ item.args_param }}"
+  with_items:
+    - "{{ custom_command }}"
+  when:
+    custom_command is defined
+  ignore_errors: "{{ item.ignore_errors | default(false) }}"
+  register: custom_command_output
+
+- name: custom | env | command | output | custom_command
+  debug:
+    msg:
+      "{{ custom_command_output }}"

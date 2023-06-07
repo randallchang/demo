@@ -1,0 +1,2 @@
+# workspace
+docker_work_dir: "{{ lookup('env','_APP_WORKDIR') }}"

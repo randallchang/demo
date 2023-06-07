@@ -1,0 +1,15 @@
+---
+# required directory | docker_compose
+- name: required directory | docker_compose
+  become: True
+  become_user: root
+  become_method: sudo
+  file:
+    path: "{{ item.path }}"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+    state: directory
+  with_items:
+    - "{{ docker_compose_required_directory }}"
+  when: docker_compose_required_directory is defined
