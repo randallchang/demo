@@ -1,57 +1,48 @@
 package com.jkos.appsvc.api.model.jkos_message.response;
 
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jkos.appsvc.api.constants.BoxedMessageBehaviorType;
-import com.jkos.appsvc.api.model.msg_hub.response.RedirectInfo;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 
 @Data
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 public class BehaviorParameter {
 
-    /**
-     * 推送類型, for app 用
-     *
-     * @see com.jkos.appsvc.api.constants.BoxedMessagePushType
-     */
     @JsonProperty("PushType")
     private Integer pushType;
 
     @JsonProperty("WebUrl")
+    @JsonAlias({"WebUrl", "webUrl"})
     private String webUrl;
 
     @JsonProperty("OrderID")
+    @JsonAlias({"OrderID", "orderId"})
     private String orderId;
 
     @JsonProperty("ReservationID")
+    @JsonAlias({"ReservationID", "reservationId"})
     private Long reservationId;
 
     @JsonProperty("ConsumeID")
+    @JsonAlias({"ConsumeID", "consumeId"})
     private Long consumeId;
 
     @JsonProperty("CommentID")
+    @JsonAlias({"CommentID", "commentId"})
     private String commentId;
 
     @JsonProperty("FeedbackID")
+    @JsonAlias({"FeedbackID", "feedbackId"})
     private String feedbackId;
 
     @JsonProperty("WaitingID")
+    @JsonAlias({"WaitingID", "waitingId"})
     private String waitingId;
-
-    public BehaviorParameter(
-            BoxedMessageBehaviorType behaviorType,
-            RedirectInfo redirectInfo) {
-
-        this.webUrl = redirectInfo.getUrl();
-        this.commentId = redirectInfo.getCommentId();
-        this.consumeId = redirectInfo.getConsumeId();
-        this.feedbackId = redirectInfo.getFeedbackId();
-        this.orderId = redirectInfo.getOrderId();
-        this.reservationId = redirectInfo.getReservationId();
-        this.waitingId = redirectInfo.getWaitingId();
-        this.pushType = behaviorType.getBoxedMessagePushType().getValue();
-    }
 }

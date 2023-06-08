@@ -23,7 +23,7 @@ public class ApiExceptionHandler {
     public ResponseEntity<CommonPayload<Object>> handleApiRuntimeException(
             ApiRuntimeException ex) {
 
-        return getResponseEntity(ex.getCode(), ex.getErrorMessage());
+        return getResponseEntity(ex.getCode(), ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -44,8 +44,8 @@ public class ApiExceptionHandler {
         log.error(ex.getMessage());
 
         return getResponseEntity(
-            ApiError.DATA_ISSUE.getErrorCode(),
-            ApiError.DATA_ISSUE.getErrorMessage());
+            ApiError.UNEXPECTED.getErrorCode(),
+            ApiError.UNEXPECTED.getErrorMessage());
     }
 
     @ExceptionHandler(Exception.class)

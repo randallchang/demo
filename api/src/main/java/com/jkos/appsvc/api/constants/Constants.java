@@ -17,4 +17,11 @@ public final class Constants {
     public static final String REQ_MEMBER_ID = "memberId";
     public static final String REQ_CORRELATION_ID_DOTNET = "CorrelationId";
     public static final String REQ_CORRELATION_ID_JAVA = "correlationId";
+
+    public static final int DEFAULT_PAGE_SIZE = 10;
+
+    public static final String RESULT_TEMPLATE = "3-JA-%s";
+    public static final String DEFAULT_SUCCESS_MESSAGE = "SUCCESS";
+    public static final String RESULT_SUCCESS = "0001";
+    public static final String MSG_HUB_SUCCESS_CODE = "UV000";
 }

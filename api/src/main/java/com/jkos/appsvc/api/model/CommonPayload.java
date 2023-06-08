@@ -1,41 +1,36 @@
 package com.jkos.appsvc.api.model;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.jkos.appsvc.api.constants.Constants;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import org.slf4j.MDC;
+
+import static com.jkos.appsvc.api.constants.Constants.DEFAULT_SUCCESS_MESSAGE;
+import static com.jkos.appsvc.api.constants.Constants.RESULT_SUCCESS;
+import static com.jkos.appsvc.api.constants.Constants.RESULT_TEMPLATE;
 
 @Getter
 @Builder
 @AllArgsConstructor
 public class CommonPayload<T> {
 
-    private static final String ENV_CODE = "3";
-    private static final String SERVICE_CODE = "JA";
-    private static final String RESULT_TEMPLATE = "%s-%s-%s";
-    private static final String DEFAULT_SUCCESS_MESSAGE = "SUCCESS";
-    private static final String RESULT_SUCCESS = "0001";
-
     @JsonProperty("Result")
-    private String result;
+    @Builder.Default
+    private String result = RESULT_SUCCESS;
 
     @JsonProperty("Message")
-    private String message;
+    @Builder.Default
+    private String message = DEFAULT_SUCCESS_MESSAGE;
 
     @JsonProperty("ResultObject")
     private T resultObject;
 
-    public static <T> CommonPayload<T> success() {
-        return success(null);
+    public static CommonPayload<Void> success() {
+        return CommonPayload.<Void>builder().build();
     }
 
     public static <T> CommonPayload<T> success(T resultObject) {
 
         return CommonPayload.<T>builder()
-                .result(RESULT_SUCCESS)
-                .message(DEFAULT_SUCCESS_MESSAGE)
                 .resultObject(resultObject)
                 .build();
     }
@@ -43,11 +38,7 @@ public class CommonPayload<T> {
     public static CommonPayload<Object> fail(String code, String message) {
 
         return CommonPayload.builder()
-                .result(String.format(
-                        RESULT_TEMPLATE,
-                        ENV_CODE,
-                        SERVICE_CODE,
-                        code))
+                .result(String.format(RESULT_TEMPLATE, code))
                 .message(message)
                 .build();
     }
@@ -56,7 +47,7 @@ public class CommonPayload<T> {
             String code, String message, T resultObject) {
 
         return CommonPayload.<T>builder()
-                .result(String.format(RESULT_TEMPLATE, ENV_CODE, SERVICE_CODE, code))
+                .result(String.format(RESULT_TEMPLATE, code))
                 .message(message)
                 .resultObject(resultObject)
                 .build();

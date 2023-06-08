@@ -19,7 +19,7 @@ import java.time.format.DateTimeFormatter;
 public class JacksonConfig {
 
     @Bean
-    public Jackson2ObjectMapperBuilderCustomizer customizer() {
+    Jackson2ObjectMapperBuilderCustomizer customizer() {
         return builder -> {
             builder.serializerByType(YearMonth.class, new YearMonthSerializer(DateTimeFormatter.ofPattern(Constants.CUSTOM_YEAR_MONTH_FORMAT)));
             builder.serializerByType(LocalDate.class, new LocalDateSerializer(DateTimeFormatter.ISO_LOCAL_DATE));

@@ -10,7 +10,6 @@ public enum ApiError {
 
     VALIDATION_FAILED("0001", "Validation failed."),
     DATA_NOT_FOUND("0008", "data not found."),
-    DATA_ISSUE("0901", "data issue."),
     EXTERNAL_API_FAIL("1000", "access external api error."),
     EXTERNAL_API_TIMEOUT("1001", "access external api timeout"),
     EXTERNAL_API_UNREACHABLE("1002", "external api unreachable"),

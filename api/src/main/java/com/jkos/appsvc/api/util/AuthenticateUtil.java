@@ -1,4 +1,4 @@
-package com.jkos.appsvc.api.utils;
+package com.jkos.appsvc.api.util;
 
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -15,12 +15,11 @@ import java.util.Collections;
 import java.util.Map;
 
 @Slf4j
-public class AuthenticateUtils {
+public class AuthenticateUtil {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private AuthenticateUtils() {
-    }
+    private AuthenticateUtil() {}
 
     public static Map<String, String> decrypt(String src, String key, String iv) {
 

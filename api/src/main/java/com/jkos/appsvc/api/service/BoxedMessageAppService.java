@@ -2,11 +2,16 @@ package com.jkos.appsvc.api.service;
 
 import com.jkos.appsvc.api.client.JkosUapiClient;
 import com.jkos.appsvc.api.client.MsgHubClient;
+import com.jkos.appsvc.api.constants.ApiError;
+import com.jkos.appsvc.api.constants.BoxedMessageTargetType;
 import com.jkos.appsvc.api.constants.Constants;
 import com.jkos.appsvc.api.model.CommonPayload;
+import com.jkos.appsvc.api.model.jkos_message.response.BehaviorParameter;
 import com.jkos.appsvc.api.model.jkos_message.response.JkosMessageResponse;
 import com.jkos.appsvc.api.model.msg_hub.response.BoxedMessage;
-import com.jkos.appsvc.api.utils.AuthenticateUtils;
+import com.jkos.appsvc.api.model.msg_hub.response.MsgHubResponse;
+import com.jkos.appsvc.api.util.AuthenticateUtil;
+import com.jkos.appsvc.api.util.ConvertUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -14,20 +19,21 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class BoxedMessageAppService {
 
-    private final MsgHubClient msgHubApiManager;
-    private final JkosUapiClient jkosUapiManager;
+    private final MsgHubClient msgHubClient;
+    private final JkosUapiClient jkosUapiClient;
 
-    // @Value("${jkos.uapi.myJkosMessageOfflineMonth}")
-    private String myJkosMessageOfflineMonth;
+    @Value("${jkos-uapi.myMessageDownTime}")
+    private String myMessageDownTime;
 
     @Value("${authenticate.oldUapiToken.pwdAesKey}")
     private String pwdAesKey;
@@ -35,53 +41,98 @@ public class BoxedMessageAppService {
     @Value("${authenticate.oldUapiToken.pwdAesIV}")
     private String pwdAesIV;
 
-    public CommonPayload<List<JkosMessageResponse>> getMyBoxedMessageByMemberId(String memberId, int page) {
-        int pageSize = 10;
-        List<BoxedMessage> boxedMessageList = msgHubApiManager.getBoxedMessagesByMemberId(memberId, page, pageSize);
-        return null;//new MyBoxedMessageResponse(memberId, boxedMessageList);
+    public List<JkosMessageResponse> getMyBoxedMessageByMemberId(String memberId, int page) {
+
+        MsgHubResponse msgHubResponse =
+            msgHubClient.getBoxedMessages(
+                BoxedMessageTargetType.USER.getValue(),
+                memberId,
+                page,
+                Constants.DEFAULT_PAGE_SIZE);
+
+        if (Constants.MSG_HUB_SUCCESS_CODE.equals(msgHubResponse.getCode())) {
+            List<BoxedMessage> dataList =
+                msgHubClient.getBoxedMessages(
+                    BoxedMessageTargetType.USER.getValue(),
+                    memberId,
+                    page,
+                    Constants.DEFAULT_PAGE_SIZE).getData();
+
+            return CollectionUtils.isEmpty(dataList)
+                    ? Collections.emptyList()
+                    : dataList.stream()
+                        .map(data -> convert(memberId, data))
+                        .collect(Collectors.toList());
+        }
+
+        log.error("[MsgHub] access api error.");
+        throw ApiError.EXTERNAL_API_FAIL.toException();
     }
 
-    public CommonPayload<List<JkosMessageResponse>> getMyBoxedMessageByAuthenticate(String authenticate, int page) {
-        int pageSize = 10;
-        String memberId = AuthenticateUtils.decrypt(authenticate, pwdAesKey, pwdAesIV).get(Constants.MEMBER_ID_PROPERTY_KEY);
+    public List<JkosMessageResponse> getMyBoxedMessageByAuthenticate(
+            String authenticate, int page) {
+
+        String memberId =
+            AuthenticateUtil
+                .decrypt(authenticate, pwdAesKey, pwdAesIV)
+                .get(Constants.MEMBER_ID_PROPERTY_KEY);
+
         if (StringUtils.isBlank(memberId)) {
-            log.error("此 token 無法解出 memberId");
-            return null;//new MyBoxedMessageResponse(2, "Token 認證失敗", null);
+            log.error("token unvalid.");
+            throw ApiError.EXTERNAL_API_AUTH_ERROR.toException();
         }
 
-        memberId = memberId.substring(1, memberId.length() - 1);
-        List<BoxedMessage> boxedMessageList = msgHubApiManager.getBoxedMessagesByMemberId(memberId, page, pageSize);
+        List<JkosMessageResponse> jkosMessageResponseList =
+            getMyBoxedMessageByMemberId(memberId, page);
 
-        if (isFullFillPage(boxedMessageList, pageSize)) {
-            log.info("MsgHub 資訊足夠, 可回傳");
-            return null;//new MyBoxedMessageResponse(memberId, boxedMessageList);
-        }
+        jkosMessageResponseList =
+            hardCodeBeforeUapiDeprecated(
+                jkosMessageResponseList,
+                authenticate,
+                page);
 
-        if (isRD2ApiOffline()) {
-            log.info("RD2 api 已下線, 僅使用 MsgHub response");
-            return null;//new MyBoxedMessageResponse(memberId, boxedMessageList);
-        } else {
-            log.info("MsgHub 資訊不足, 使用 RD2 資料回傳");
-            return jkosUapiManager.getJkosMessages(authenticate, page);
-        }
+        return jkosMessageResponseList;
     }
 
-    private boolean isRD2ApiOffline() {
-        YearMonth now = YearMonth.now();
+    private List<JkosMessageResponse> hardCodeBeforeUapiDeprecated(
+            List<JkosMessageResponse> jkosMessageResponseList,
+            String authenticate,
+            int page) {
 
-        YearMonth rd2ApiOfflineMonth =
-            YearMonth.parse(
-                myJkosMessageOfflineMonth,
-                DateTimeFormatter.ofPattern(Constants.CUSTOM_YEAR_MONTH_FORMAT));
+        if (LocalDateTime.now().isBefore(
+                    LocalDateTime.parse(myMessageDownTime))
+                && (CollectionUtils.isEmpty(jkosMessageResponseList)
+                    || jkosMessageResponseList.size() < Constants.DEFAULT_PAGE_SIZE)) {
 
-        log.info("現在月份 : {}, RD2 My JkosMessage API 最後支援月份 : {}",
-            now.format(DateTimeFormatter.ofPattern(Constants.CUSTOM_YEAR_MONTH_FORMAT)),
-            myJkosMessageOfflineMonth);
+            CommonPayload<List<JkosMessageResponse>> response =
+                jkosUapiClient.getJkosMessages(authenticate, page);
 
-        return now.isAfter(rd2ApiOfflineMonth);
+            if (!Constants.RESULT_SUCCESS.equals(response.getResult())) {
+                log.error("[Uapi] access api error.");
+                throw ApiError.EXTERNAL_API_FAIL.toException();
+            }
+
+            jkosMessageResponseList = response.getResultObject();
+        }
+
+        return jkosMessageResponseList;
     }
 
-    private boolean isFullFillPage(List<BoxedMessage> list, int pageSize) {
-        return !CollectionUtils.isEmpty(list) && list.size() == pageSize;
+    private JkosMessageResponse convert(String memberId, BoxedMessage boxedMessage) {
+
+        JkosMessageResponse jkosMessageResponse =
+            ConvertUtil.deepCloneInstantiateClass(
+                boxedMessage,
+                JkosMessageResponse.class);
+        BehaviorParameter behaviorParameter =
+            jkosMessageResponse.getBehaviorParameter();
+
+        if (behaviorParameter != null) {
+            behaviorParameter.setPushType(boxedMessage.getPushType());
+        }
+
+        jkosMessageResponse.setMemberId(memberId);
+
+        return jkosMessageResponse;
     }
 }

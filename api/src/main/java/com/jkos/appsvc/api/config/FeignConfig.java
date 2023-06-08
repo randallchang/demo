@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
 public class FeignConfig {
 
     @Bean
-    public RequestInterceptor bearerAuthRequestInterceptor() {
+    RequestInterceptor bearerAuthRequestInterceptor() {
         return requestTemplate ->
             requestTemplate.header(Constants.REQ_CORRELATION_ID_JAVA,
                 MDC.get(Constants.REQ_CORRELATION_ID_JAVA));

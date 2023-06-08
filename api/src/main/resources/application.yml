@@ -3,27 +3,38 @@ spring:
     active: local
   application:
     name: appsvc-api
-  h2:
-    console:
-      enabled: false
   datasource:
-    url: jdbc:h2:mem:testDB;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
-    username: api
-    password: api
-    driverClassName: org.h2.Driver
-    hikari:
-      maximumPoolSize: 5
-      minimumIdle: 5
+    url: jdbc:mysql://localhost:3306/sys?serverTimezone=GMT%2B8&characterEncoding=utf8&allowMultiQueries=TRUE
+    username: root
+    password: root
 server:
   port: 8080
   servlet:
     contextPath: /appsvc/api
-##### 以上為 3rd lib 設定, 以下為專案內設定
 
-jkos:
-  uapi:
-    base-url: https://sit-uapi-inner.jkos.app/Service/
-    my-jkos-message-offline-month: 2025-03
+management:
+  endpoint:
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+      show-components: always
+      probes:
+        enabled: true
+    shutdown:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, metrics, info, health
+
+api-version: v1
+
+jkos-uapi:
+  base-url: https://sit-uapi-inner.jkos.app/Service/
+  myMessageDownTime: "2025-03-01T00:00:00"
 msg-hub:
   base-url: https://sit-msghub.jkos.app/
 

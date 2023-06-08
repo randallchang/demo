@@ -9,5 +9,5 @@ import lombok.RequiredArgsConstructor;
 public class ApiRuntimeException extends RuntimeException {
 
     private final String code;
-    private final String errorMessage;
+    private final String message;
 }
